@@ -23,24 +23,26 @@ def initConnection():
 
     return sock
 
+def synchronize(numberOfProcess):
+    print '\nSincronizing..'
+
+    print 'Recv %s'%pid
+    synchroMsg = 'SYN '+str(pid)
+                    
+    while len(pid_list) < numberOfProcess:
+        sock.sendto(synchroMsg,multicast_group)
+        data, address = sock.recvfrom(1024)  
+        pidRecv = int(data[4:])
+
+        if not (pidRecv in pid_list):
+            pid_list.append(pidRecv)
+            print 'Recv %s'%data
+        
+        sock.sendto(synchroMsg,multicast_group)
 
 sock = initConnection()
 
-print >>sys.stderr, '\nSincronizing..'
-
-print >>sys.stderr , 'Recv %s'%pid
-msg = 'ACK '+str(pid)
-
-while len(pid_list) < 3:
-    sock.sendto(msg,multicast_group)
-    data, address = sock.recvfrom(1024)  
-    pidRecv = data[4:]
-
-    if not (int(pidRecv) in pid_list):
-        pid_list.append(int(pidRecv))
-        print >>sys.stderr , 'Recv %s'%data
-        
-    sock.sendto(msg,multicast_group)
+synchronize(3)
 
 pid_list.sort()
 tempo = pid_list.index(pid)
