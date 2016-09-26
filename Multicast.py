@@ -3,11 +3,12 @@ import struct
 import sys
 import os
 import thread
+import time
 
 try:
-        from Queue import PriorityQueue  # ver. < 3.0
+    from Queue import PriorityQueue  # ver. < 3.0
 except ImportError:
-        from queue import PriorityQueue
+    from queue import PriorityQueue
 
 
 class MulticastChat:
@@ -28,11 +29,19 @@ class MulticastChat:
         self.synchronize(self.numberOfProcess)
 
         self.pid_list.sort()
-        time = self.pid_list.index(self.pid)
+        self.pid = self.pid_list.index(self.pid)
+        self.time = self.pid + 1
+        
         thread.start_new_thread(self.recvListener,())
-        print "Ready - Digite sua msg:"
+        print "Ready - I'm the process no: "+str(self.pid)
+        print "Send your message:"
         while True:
-                msg = raw_input()
+            msg = raw_input()
+            if msg[:3] == "STP":
+                pidStop = int(msg[4:].split("-s")[0])
+                seconds = int(msg[4:].split("-s")[1])
+                self.sendStopMsg(pidStop,seconds)
+            else:
                 self.sendMsg(msg)
         print "end"
 
@@ -43,14 +52,14 @@ class MulticastChat:
         membership = socket.inet_aton(self.multicast_ip) + socket.inet_aton(self.hostIp)
 
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 
         sock.bind(self.server_address)
 
         return sock
 
     def synchronize(self,numberOfProcess):
-        print '\nSincronizing..'
+        print '\nSynchronizing..'
 
         #print 'Recv %s'%self.pid
         synchroMsg = 'SYN '+ str(self.pid)
@@ -65,8 +74,10 @@ class MulticastChat:
                 #print 'Recv %s'%data
             
             self.sock.sendto(synchroMsg,self.multicast_group)
-
-            
+        
+    def sendStopMsg(self, pidNo, seconds):
+        msg = "STP "+str(pidNo)+" -s "+str(seconds)
+        self.sock.sendto(msg,self.multicast_group)
 
     def sendMsg(self,msg):
         msgTosend = "MSG ID:" + str(self.time) + "-" + str(self.pid) + "\r\nContent:" + msg
@@ -117,6 +128,7 @@ class MulticastChat:
 
     def recvListener(self):
         while True:
+
             data, address = self.sock.recvfrom(1024)
             cmd = data[:3]
 
@@ -133,6 +145,13 @@ class MulticastChat:
                 content = str(msgId) + ": " + contentMsg[8:]
                 self.recvMsg(content,msgId,timeRecv)
                 
-
+            elif cmd == "STP":
+                stopPid = int(data[4:].split("-s")[0])
+                seconds = int(data[4:].split("-s")[1])
+                if stopPid != self.pid:
+                    continue    
+                print "Stopped to listen for %d seconds"%seconds
+                time.sleep(seconds)
+                print "Woke up"
         
 MulticastChat()
