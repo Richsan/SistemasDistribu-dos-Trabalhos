@@ -1,3 +1,33 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+ * Universidade Federal de São Carlos - Campus Sorocaba
+ * Disciplina: Sistemas Distribuídos
+ * 
+ * Multicast Totalmente Ordenado 
+ *
+ * Alunos: 
+ * Carolina Pascale Campos            RA: 552100
+ * Henrique Manoel de Lima Sebastião  RA: 552259
+ *
+ * Execução: python Multicast552100-552259.py n
+ *
+ * onde n = numero de processos na comunicação, como consequência 
+ * você terá que iniciar mais n-1 instancias do processo para
+ * passar da fase de sincronização
+ *
+ * Ao enviar mensagem, você pode usar alguns comandos:
+ * LIST -> Vai listar todas as mensagens da conversa
+ * STP pid -s t -> pid é o id do processo e t é um inteiro representando
+ *                 o tempo em segundos que o processo indicado vai ficar parado
+ *                 no recebimento de mensagens e acks
+ *
+ * DELAY pid -s t -> semelhante ao STP, só que nesse caso o processo vai atrasar
+ *                    no envio de mensagens e acks
+"""
+
+
 import socket
 import struct
 from sys import argv
@@ -23,12 +53,13 @@ class MulticastChat:
     time = 0
     server_address = ((hostIp,10000))
     conversationList = []
+    sendDelay = 0
     
-    def __init__(self, numberOfProcess):
-        self.numberOfProcess = numberOfProcess
+    def __init__(self, numberOfProcesses):
+        self.numberOfProcesses = numberOfProcesses
 
         self.sock = self.initConnection()
-        self.synchronize(self.numberOfProcess)
+        self.synchronize(self.numberOfProcesses)
 
         self.pid_list.sort()
         self.pid = self.pid_list.index(self.pid)
@@ -39,7 +70,12 @@ class MulticastChat:
         print "Send your message:"
         while True:
             msg = raw_input()
-            if msg[:4] == "LIST":
+            if msg[:5] == "DELAY":
+                stopPid = int(msg[5:].split("-s")[0])
+                seconds = int(msg[5:].split("-s")[1])
+                self.sendDelayMsg(stopPid, seconds)
+                
+            elif msg[:4] == "LIST":
                 self.printConversationLog()
             elif msg[:3] == "PID":
                 print self.presentationMsg()     
@@ -57,7 +93,11 @@ class MulticastChat:
     def printConversationLog(self):
         for i in self.conversationList:
                 print i
-                    
+
+    def sendDelayMsg(self,pidDelay, seconds):
+        msg = "DELAY "+str(pidDelay) + " -s"+ str(seconds)
+        self.sock.sendto(msg,self.multicast_group)
+        
     def initConnection(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -70,13 +110,13 @@ class MulticastChat:
 
         return sock
 
-    def synchronize(self,numberOfProcess):
+    def synchronize(self,numberOfProcesses):
         print '\nSynchronizing..'
 
         #print 'Recv %s'%self.pid
         synchroMsg = 'SYN '+ str(self.pid)
     
-        while len(self.pid_list) < self.numberOfProcess:
+        while len(self.pid_list) < self.numberOfProcesses:
             self.sock.sendto(synchroMsg,self.multicast_group)
             data, address = self.sock.recvfrom(1024)  
             pidRecv = int(data[4:])
@@ -95,6 +135,12 @@ class MulticastChat:
         self.time += 1
         msgTosend = "MSG ID:" + str(self.time) + "-" + str(self.pid) + "\r\nContent:" + msg
         #print "sended: "+msgTosend
+
+        if self.sendDelay > 0:
+            print "delaying on send for %d seconds"%self.sendDelay
+            time.sleep(self.sendDelay)
+            self.sendDelay = 0
+            
         self.sock.sendto(msgTosend,self.multicast_group)
         
 
@@ -108,6 +154,13 @@ class MulticastChat:
     def ackMsg(self, msgId):
         ack = "ACK "+str(msgId) + ":" + str(self.time)
         self.time += 1
+        
+        if self.sendDelay > 0:
+            print "delaying on ACK for %d seconds"%self.sendDelay
+            time.sleep(self.sendDelay)
+            print "sending"
+            self.sendDelay = 0
+            
         self.sock.sendto(ack,self.multicast_group)
         
     def recvAck(self,msgId, timestamp):
@@ -120,7 +173,7 @@ class MulticastChat:
 
     def deliverMsg(self, msgId):
         
-        if self.numberAckList[msgId] < self.numberOfProcess:
+        if self.numberAckList[msgId] < self.numberOfProcesses:
             return
 
         time , msg = self.queueMsg.get(False)
@@ -137,7 +190,7 @@ class MulticastChat:
 
         while not (self.queueMsg.empty()):
             time , msg = self.queueMsg.get(False)
-            if(self.numberAckList[time] < self.numberOfProcess):
+            if(self.numberAckList[time] < self.numberOfProcesses):
                 self.queueMsg.put((time, msg))
                 break
 
@@ -152,7 +205,15 @@ class MulticastChat:
             data, address = self.sock.recvfrom(1024)
             cmd = data[:3]
 
-            if cmd == "ACK":
+            if data[:5] == "DELAY":
+                stopPid = int(data[5:].split("-s")[0])
+                seconds = int(data[5:].split("-s")[1])
+
+                if(stopPid == self.pid):
+                    self.sendDelay = seconds
+                    print "Delayed on send"
+                    
+            elif cmd == "ACK":
                 msgID = int(data.split(":")[0][4:])
                 timestamp = int(data.split(":")[1])
                 self.recvAck(msgID,timestamp)
@@ -165,6 +226,7 @@ class MulticastChat:
                 senderId = int(msgId[7:].split("-")[1])
                 msgId = int("".join(msgId[7:].split("-")))
                 content = str(msgId) + ": " + contentMsg[8:]
+
                 self.recvMsg(content,msgId,timeRecv,senderId)
                 
             elif cmd == "STP":
@@ -177,6 +239,6 @@ class MulticastChat:
                 print "Woke up"
 
 if len(argv) <= 1:
-    raise Exception("You must provide the number of process as argument!")
+    raise Exception("You must provide the number of processes as argument!")
 else:
     MulticastChat(int(argv[1]))
