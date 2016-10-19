@@ -152,9 +152,10 @@ class MulticastChat:
         self.ackMsg(msgId)
 
     def ackMsg(self, msgId):
-        ack = "ACK "+str(msgId) + ":" + str(self.time)
+
         self.time += 1
-        
+        ack = "ACK "+str(msgId) + ":" + str(self.time)
+                
         if self.sendDelay > 0:
             print "delaying on ACK for %d seconds"%self.sendDelay
             time.sleep(self.sendDelay)

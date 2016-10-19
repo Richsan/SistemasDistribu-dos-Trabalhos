@@ -129,9 +129,10 @@ class RicartAgrawalaSim:
 
 
     def sendRequestMsg(self):
-        
-        reqMsg = "REQ "+str(self.time) + "-" + str(self.pid)
+
         self.time += 1
+        reqMsg = "REQ "+str(self.time) + "-" + str(self.pid)
+
         self.requestedResource = True
         self.sock.sendto(reqMsg,self.multicast_group)
 
@@ -230,9 +231,9 @@ class RicartAgrawalaSim:
 
 
     def sendAckMsg(self, msgId):
-        
-        ack = "ACK "+str(msgId) + ":" + str(self.time)
+
         self.time += 1
+        ack = "ACK "+str(msgId) + ":" + str(self.time)
         self.sock.sendto(ack,self.multicast_group)
 
         
@@ -246,15 +247,15 @@ class RicartAgrawalaSim:
             self.numberAckList[msgId] = 1
 
     def sendOkMsg(self, msgId):
-        
-        okMsg = "OK "+ msgId + ":" + str(self.time)+"-"+str(self.pid);
+
         self.time += 1
+        okMsg = "OK "+ msgId + ":" + str(self.time)+"-"+str(self.pid);
         self.sock.sendto(okMsg,self.multicast_group)
 
     def sendNOkMsg(self, msgId):
-        
-        nokMsg = "NOK "+ msgId + ":" + str(self.time)+"-"+str(self.pid)
+
         self.time += 1
+        nokMsg = "NOK "+ msgId + ":" + str(self.time)+"-"+str(self.pid)
         self.sock.sendto(nokMsg,self.multicast_group)
 
             
@@ -283,51 +284,57 @@ class RicartAgrawalaSim:
 
             elif cmd == "REQ":
                 msgID = data[4:]
-                timestamp = int(data[4:].split("-")[1])
+                timestamp = int(data[4:].split("-")[0])
+                ok = False
                 
-                self.time = 1 + max(self.time, timestamp)
-                
-                if not self.usingResource:
-                    self.sendOkMsg(msgID)
-                    
-                elif self.requestedResource:
+                if self.requestedResource:
                     if self.time >= timestamp:
-                        self.sendOkMsg(msgID)
+                        ok = True
 
                     else:
                         self.queueResource.put((timestamp,msgID))
-                        self.sendNOkMsg(msgID)
+                        ok = False
+
+                elif not self.usingResource:
+                    ok = True
 
                 else:
                     self.queueResource.put((timestamp,msgID))
+                    ok = False
+
+                self.time = 1 + max(self.time, timestamp)
+                if ok:
+                    self.sendOkMsg(msgID)
+                else:
                     self.sendNOkMsg(msgID)
 
+                    
             elif data[:2] == "OK":
                 idDest = int(data[3:].split(":")[0].split("-")[1])
                 timestamp = int(data[3:].split(":")[1].split("-")[0])
                 idSend = int(data[3:].split(":")[1].split("-")[1])
-                print "Receveid OK from pid "+str(idSend)
-                
+            
                 self.time = 1 + max(self.time, timestamp)
 
                 if self.requestedResource and idDest == self.pid:
+                    print "Receveid OK from pid "+str(idSend)
                     self.oksNumberReceived += 1
                     if self.oksNumberReceived == self.numberOfProcesses:
                         self.usingResource = True
+                        self.requestedResource = False
                         self.pidUsingResource = -1
                         self.resourceBusy = False
                         self.oksNumberReceived = 0
 
             elif cmd == "NOK":
-                idDest = int(data[4:].split("-")[0])
+                idDest = int(data[4:].split(":")[0].split("-")[1])
                 timestamp = int(data[4:].split(":")[1].split("-")[0])
                 idSend = int(data[4:].split(":")[1].split("-")[1])
-
-                print "Receveid NOK from pid "+str(idSend)
                 
                 self.time = 1 + max(self.time, timestamp)
                 
                 if idDest == self.pid:
+                    print "Receveid NOK from pid "+str(idSend)
                     self.resourceBusy = True
                     self.pidUsingResource = idSend
                     
