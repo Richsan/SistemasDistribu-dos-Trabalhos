@@ -317,7 +317,7 @@ class RicartAgrawalaSim:
                 self.time = 1 + max(self.time, timestamp)
 
                 if self.requestedResource and idDest == self.pid:
-                    print "Receveid OK from pid "+str(idSend)
+                    print "Received OK from pid "+str(idSend)
                     self.oksNumberReceived += 1
                     if self.oksNumberReceived == self.numberOfProcesses:
                         self.usingResource = True
