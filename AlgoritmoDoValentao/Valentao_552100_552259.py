@@ -11,10 +11,9 @@
  * Carolina Pascale Campos            RA: 552100
  * Henrique Manoel de Lima Sebastião  RA: 552259
  *
- * Execucao: python Valentao_552100_552259.py idNo numNoListening listaDeNosAConectar
+ * Execucao: python Valentao_552100_552259.py idNo
  *
- * numNoListening se refere a quantos nos o no vai esperar se conectar
- * listaDeNosAConectar se refere a uma lista de ids de nos que ja estao rodando que este no deseja se conectar 
+ *  onde IdNo é o numero de Id do processo
 """
 
 from socket import *
