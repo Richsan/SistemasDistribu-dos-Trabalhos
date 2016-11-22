@@ -19,7 +19,7 @@ int main(int argc,char **argv)
 
 	cl = clnt_create(argv[1],TRANSFERFILE_PROG,TRANSFERFILE_VERS,"tcp");
 
-
+  
 	if(cl == NULL)
 	{
 		printf("%s",clnt_sperror(cl,argv[1]));
@@ -27,9 +27,11 @@ int main(int argc,char **argv)
 	}
 
 	file = fopen(argv[2],"r");
+	
 	in.name = argv[2];	
 
 	in.size = 0;
+	in.firstChunk = 1;
 	while(1)
 	{
 		in.size = fread(in.data,1,MAXFILE,file);
@@ -44,6 +46,7 @@ int main(int argc,char **argv)
 		if(in.size < MAXFILE)
 			break;
 		
+		in.firstChunk = 0;
 	}	
 	fclose(file);
 

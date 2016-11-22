@@ -1,5 +1,5 @@
 #define MAXNAME 1024
-const MAXFILE =  1024;
+const MAXFILE =  4096;
 
 typedef string filename<MAXNAME>;
 
@@ -9,6 +9,7 @@ struct transferFile_in
 {
 	filename name;
 	int size;
+	int firstChunk;
 	fileContent data;
 		
 };
