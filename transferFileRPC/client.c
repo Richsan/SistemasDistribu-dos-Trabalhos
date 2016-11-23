@@ -3,6 +3,26 @@
 #include <sys/time.h>
 #include "transferFile.h"
 
+void extractName(char *argv, char * fileName)
+{
+	int i,j,len;
+	
+	len = strlen(argv);
+	
+	for(i = len -1; i >=0 && argv[i] != '/'; i--);
+
+	if(i > 0)
+	{
+		i++;
+		for(j = 0; i < len;i++, j++)
+			fileName[j] = argv[i];
+		
+		fileName[j] = '\0';
+	}
+	else
+		strcpy(fileName,argv);
+	
+}
 
 int main(int argc,char **argv)
 {
@@ -11,7 +31,8 @@ int main(int argc,char **argv)
 	transferFile_out *outp;
 	FILE *file;
 	int readBytes;
-
+	char fileName[4096];
+	
 	struct timeval time;
 
 	if(argc != 3)
@@ -19,6 +40,8 @@ int main(int argc,char **argv)
 		printf("usage: client <hostname><pathFile>");
 		return 1;
 	}
+
+	extractName(argv[2],fileName);
 
 	cl = clnt_create(argv[1],TRANSFERFILE_PROG,TRANSFERFILE_VERS,"tcp");
 
@@ -30,8 +53,14 @@ int main(int argc,char **argv)
 	}
 
 	file = fopen(argv[2],"r");
+
+	if(file == NULL)
+	{
+		puts("File doesn't exist");
+		return 1;
+	}
 	
-	in.name = argv[2];	
+	in.name = fileName;	
 
 	in.size = 0;
 	in.firstChunk = 1;
@@ -46,7 +75,7 @@ int main(int argc,char **argv)
 		
 		if(!(outp->sucess))
 		{
-			printf("Deu ruin");
+			puts("Falha durante envio");
 			return 1;
 		}
 
@@ -54,7 +83,8 @@ int main(int argc,char **argv)
 			break;
 		
 		in.firstChunk = 0;
-	}	
+	}
+	
 	fclose(file);
 
 	gettimeofday(&time, NULL);
