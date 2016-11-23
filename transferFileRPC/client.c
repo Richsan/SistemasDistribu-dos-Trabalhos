@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 #include "transferFile.h"
+
 
 int main(int argc,char **argv)
 {
@@ -10,6 +12,7 @@ int main(int argc,char **argv)
 	FILE *file;
 	int readBytes;
 
+	struct timeval time;
 
 	if(argc != 3)
 	{
@@ -32,6 +35,10 @@ int main(int argc,char **argv)
 
 	in.size = 0;
 	in.firstChunk = 1;
+
+	gettimeofday(&time, NULL);
+	long inicio = ((unsigned long long)time.tv_sec * 1000000) + time.tv_usec;
+	
 	while(1)
 	{
 		in.size = fread(in.data,1,MAXFILE,file);
@@ -50,7 +57,11 @@ int main(int argc,char **argv)
 	}	
 	fclose(file);
 
-	printf("Arquivo enviado com sucesso!\n");
+	gettimeofday(&time, NULL);
+	long fim = ((unsigned long long)time.tv_sec * 1000000) + time.tv_usec;
+	
+	puts("Arquivo enviado com sucesso!");
+	printf("Tempo de transferencia em segundos: %g\n",(double)(fim - inicio)/1000000);
 
 	exit(0);
 }
