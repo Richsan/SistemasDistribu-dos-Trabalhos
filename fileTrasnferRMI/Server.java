@@ -50,7 +50,7 @@ public class Server implements FileTransfer
 			LocateRegistry.createRegistry(1099);
 			
 			Server obj = new Server();
-			FileTransfer stub = (FileTransfer) UnicastRemoteObject.exportObject(obj, 0);
+			FileTransfer stub = (FileTransfer) UnicastRemoteObject.exportObject(obj, 12010);
 
 			// Bind the remote object's stub in the registry
 			Registry registry = LocateRegistry.getRegistry();

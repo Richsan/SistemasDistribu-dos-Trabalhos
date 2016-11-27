@@ -15,6 +15,8 @@ public class Client {
 		
 		String host = args[0];
 		String fileName = args[1];
+
+		System.out.println(host);
 		
 		try {
 			Registry registry = LocateRegistry.getRegistry(host);
