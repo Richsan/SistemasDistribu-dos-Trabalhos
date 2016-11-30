@@ -1,3 +1,21 @@
+/*
+* Universidade Federal de São Carlos - Campus Sorocaba
+ * Disciplina: Sistemas Distribuídos
+ * 
+ * Upload de Arquivo com RMI
+ *
+ * Alunos: 
+ * Carolina Pascale Campos            RA: 552100
+ * Henrique Manoel de Lima Sebastião  RA: 552259
+ *
+ * Compilação: javac FileTransfer.java RemoteFileChunk.java Server.java Client.java
+ *
+ * Execução (Servidor Windows): java Server 
+ * Execução (Cliente): java Client host arquivo
+ * OBS: Garanta que antes de executar o servidor, exista um diretório 
+ *		chamado "serverDir" na mesma pasta que o Server.class
+*/
+
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.io.FileInputStream;
@@ -29,6 +47,9 @@ public class Client {
 			RemoteFileChunk remoteFileChunk = new RemoteFileChunk(fileName,true);
 			String response;
 
+			// Get current time
+			long start = System.currentTimeMillis();
+
 			while(fi.read(buffer) > 0)
 			{
 				remoteFileChunk.setData(buffer);
@@ -45,7 +66,14 @@ public class Client {
 			}
 			
 			fi.close();
+			// Get elapsed time in milliseconds
+			long elapsedTimeMillis = System.currentTimeMillis()-start;
+
+			// Get elapsed time in seconds
+			float elapsedTimeSec = elapsedTimeMillis/1000F;
+
 			System.out.println("Arquivo enviado com sucesso!");
+			System.out.println("Tempo de Envio: "+String.format( "%.2f",elapsedTimeSec)+" seconds");
 		}
 		catch (Exception e)
 		{
