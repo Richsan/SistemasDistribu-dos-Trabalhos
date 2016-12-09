@@ -28,6 +28,7 @@ public class Client {
 			byte[] buffer = new byte[4096];
 			RemoteFileChunk remoteFileChunk = new RemoteFileChunk(fileName,true);
 			String response;
+			
 
 			while(fi.read(buffer) > 0)
 			{
