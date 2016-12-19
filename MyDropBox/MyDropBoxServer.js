@@ -1,6 +1,19 @@
 const express = require('express');
 const fs = require('fs');
 const gutil = require('gulp-util');
+const bodyParser =    require("body-parser");
+const multer  =   require('multer');
+
+const storage = multer.diskStorage({
+  destination: function (req, file, callback) {
+    callback(null, './server');
+  },
+  filename: function (req, file, callback) {
+    callback(null, file.originalname);
+  }
+});
+
+const upload = multer({ storage : storage}).single('userFile');
 
 const myDropBoxServer = {};
 
@@ -52,13 +65,25 @@ myDropBoxServer.getListFiles = function(req,res)
 
 myDropBoxServer.deleteFile = (req, res) => {
 
-	let content = myDropBoxServer.listFiles('server');
 	myDropBoxServer.delete('oi.txt');
   let dirFilesStr = JSON.stringify('oi.txt', null, 2);
   res.write(dirFilesStr);
   res.end();
 }
 
+myDropBoxServer.homePage = (req, res) => {
+	res.sendFile(__dirname + "/index.html");
+}
+
+myDropBoxServer.uploadFile = (req, res) => {
+
+	upload(req, res, function(err) {
+    if(err) {
+        return res.end(console.log(err));
+    }
+    res.end("File is uploaded");
+  });
+}
 
 
 myDropBoxServer.startServer = function()
@@ -68,6 +93,8 @@ myDropBoxServer.startServer = function()
    {
       app.get('/listFiles',myDropBoxServer.getListFiles);
       app.get('/deleteFile', myDropBoxServer.deleteFile);
+      app.get('/', myDropBoxServer.homePage);
+      app.post('/uploadFile', myDropBoxServer.uploadFile);
    }
 
    function startedMessage(server)
@@ -79,6 +106,7 @@ myDropBoxServer.startServer = function()
 
    const app = express();
    appSetup(app);
+   app.use(bodyParser.json());
 
    const server = app.listen(8081);
 
