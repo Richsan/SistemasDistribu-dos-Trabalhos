@@ -1,117 +1,259 @@
 const express = require('express');
 const fs = require('fs');
-const gutil = require('gulp-util');
-const bodyParser =    require("body-parser");
-const multer  =   require('multer');
-
-const storage = multer.diskStorage({
-  destination: function (req, file, callback) {
-    callback(null, './server');
-  },
-  filename: function (req, file, callback) {
-    callback(null, file.originalname);
-  }
-});
-
-const upload = multer({ storage : storage}).single('userFile');
+const busboy = require('connect-busboy');
+const bodyParser = require('body-parser');
+const rmdir = require('rmdir');
 
 const myDropBoxServer = {};
 
-myDropBoxServer.listFiles = function (path)
+//All controls here!
+myDropBoxServer.controls = function()
 {
-   const dirContent = [];
+	 //functions that will be exported as control functions
+	 const controls = {getListFiles,getFile,putFile,removeFile,
+							 putDir,removeDir};
+	 
+	 
+	 function _listFiles(path)
+	 {
+		  const dirContent = [];
 
-   const content = fs.readdirSync(path);
+		  const content = fs.readdirSync(path);
 
-   for(let c of content)
-   {
-      if(fs.lstatSync(path + '/' + c).isDirectory())
-      {
-        const subDir = {};
-        subDir['name'] = c
-        subDir['content'] = myDropBoxServer.listFiles(path + '/' + c);
-        dirContent.push({'directory': subDir});
-      }
-      else
-        dirContent.push({'file': c});
-   }
+		  for(let c of content)
+		  {
+				if(fs.lstatSync(path+"/"+c).isDirectory())
+				{
+					 const subDir = {};
+					 subDir["name"] = c
+					 subDir["content"] = _listFiles(path+"/"+c);
+					 dirContent.push({"directory": subDir});	
+				}
+				else
+					 dirContent.push({"file":c});
+		  }
 
-   return dirContent;
+		  return dirContent;
+	 }
 
-}
+	 function _writeObjAsJSON(res, obj)
+	 {
+		  const objStr =  JSON.stringify(obj,null,2);
+		  res.write(objStr);
+	 }
 
-	myDropBoxServer.delete = (file) => {
+	 function getListFiles(req,res)
+	 {
+		  let content = _listFiles("server");
+		  _writeObjAsJSON(res,content);
+		  res.end();
+	 }
 
-		const path = `./server/${file}`;
-		const exists = fs.existsSync(path);
+	 function getFile(req,res)
+	 {
+		  res.download("server/"+req.query.filename);
+	 }
 
-		if (exists) {
-			console.log(gutil.colors.green('File exists. Deleting now ...'));
-		  fs.unlink(path);
-		}
-		else {
-		  console.log(gutil.colors.red('File not found, so not deleting.'));
-		};
+	 function putFile(req,res)
+	 {
+		  function copyFile(fieldname,file,filename)
+		  {
+				const fstream = fs.createWriteStream('server/' + fieldname);
+				
+				file.pipe(fstream);
+				
+				fstream.on('error', err => {
+					 console.log("erro no pipe:"+fieldname);
+					 const objResponse = {status:"fail"};
+					 res.status(400);
+					 _writeObjAsJSON(res,objResponse);
+					 res.end();
+				});
 
-	}
+				file.on('end', err => {
+					 console.log("arquivo ok "+fieldname);
+					 const objResponse = {status:"ok"};
+					 _writeObjAsJSON(res,objResponse);
+					 res.end();
+				});
 
-myDropBoxServer.getListFiles = function(req,res)
-{
-   let content = myDropBoxServer.listFiles('server');
-   let dirFilesStr = JSON.stringify(content, null, 2);
-   res.write(dirFilesStr);
-   res.end();
-}
+				
+		  }
+		  
+		  req.pipe(req.busboy);
+		  console.log(req.body);
+		  req.busboy.on('file', copyFile);
 
-myDropBoxServer.deleteFile = (req, res) => {
+		  
+	 }
 
-	myDropBoxServer.delete('oi.txt');
-  let dirFilesStr = JSON.stringify('oi.txt', null, 2);
-  res.write(dirFilesStr);
-  res.end();
-}
+	 function removeDir(req,res)
+	 {
+		  if(!req.query.dirname)
+		  {
+				const objResponse = {status:"fail"}
+				res.status(400);
+				objResponse.errorMsg = "dirname should be informed on url";
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+				return;
+		  }
+		  
+		  const dirName = 'server/'+ req.query.dirname;
+		  
+		  
+		  if (fs.existsSync(dirName))
+		  {
+				rmdir(dirName, (err, dirs, file)=>
+						{
+							 const objResponse = {status:"ok"};
 
-myDropBoxServer.homePage = (req, res) => {
-	res.sendFile(__dirname + "/index.html");
-}
+							 if(err)
+							 {
+								  objResponse.status = "fail";
+								  res.status(400);
+							 }
+							 _writeObjAsJSON(res,objResponse);
+							 res.end();
+						});
+				
+		  }
+		  else
+		  {
+				const objResponse = {status:"fail"};
+				objResponse.errorMsg = "dir not exists";
+				res.status(400);
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+		  }
+	 }
+	 
+	 function putDir(req, res)
+	 {
+		  const objResponse = {status:"fail"};
+		  
+		  if(!req.body.dirname)
+		  {
+				res.status(400);
+				objResponse.errorMsg = "dirname should be informed into data on request";
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+				return;
+		  }
+		  
+		  const dirName = 'server/'+ req.body.dirname;
+		  
+		  console.log("debug "+dirName);
+		  
+		  if (!fs.existsSync(dirName))
+		  {
+				try
+				{
+					 fs.mkdirSync(dirName);
+					 objResponse.status = "ok"
+					 _writeObjAsJSON(res,objResponse);
+					 res.end();
+				}
+				catch(err)
+				{
+					 res.status(400);
+					 objResponse.errorMsg = "cannot create the directory, check if the path when you trying put directory exists";
+					 _writeObjAsJSON(res,objResponse);
+					 res.end();
+				}
+				return;
+		  }
+		  else
+				objResponse.status = "nothing";
 
-myDropBoxServer.uploadFile = (req, res) => {
+		  res.status(400);
+		  obj.errorMsg = "The directory already exists, nothing was made";
+		  _writeObjAsJSON(res,objResponse);
+		  res.end();
+		  
+	 }
 
-	upload(req, res, function(err) {
-    if(err) {
-        return res.end(console.log(err));
-    }
-    res.end("File is uploaded");
-  });
-}
+	 function removeFile(req,res)
+	 {
+		  const objResponse = {status: "fail"};
 
+		  if(!req.query.filename)
+		  {
+				res.status(400);
+				obj.errorMsg = "filename should be informed in url";
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+				return;
+		  }
+		  try
+		  {
+				fs.unlinkSync("server/"+req.query.filename);
+
+				objResponse.status = "ok";
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+		  }
+		  catch (err)
+		  {
+				res.status(400);
+				_writeObjAsJSON(res,objResponse);
+				res.end();
+		  }
+		  
+		  
+		  
+		  
+	 }
+	 
+	 
+	 return controls;
+	 
+}();
 
 myDropBoxServer.startServer = function()
 {
-   //all controls here!
-   function appSetup(app)
-   {
-      app.get('/listFiles',myDropBoxServer.getListFiles);
-      app.get('/deleteFile', myDropBoxServer.deleteFile);
-      app.get('/', myDropBoxServer.homePage);
-      app.post('/uploadFile', myDropBoxServer.uploadFile);
-   }
+	 //all control maps here!
+	 function appMapControls(app)
+	 {
+		  const control = myDropBoxServer.controls;
+		  
+		  app.get('/listFiles',control.getListFiles);
+		  app.get('/getFile',control.getFile);
+		  app.put('/putFile',control.putFile);
+		  app.put('/putDir',control.putDir);
+		  app.delete('/removeFile',control.removeFile);
+		  app.delete('/removeDir',control.removeDir);
+	 }
 
-   function startedMessage(server)
-   {
-      const { address, port } = server.address();
+	 function appSetup()
+	 {
+		  const app = express();
+		  app.use(busboy()); 
+		  app.use(bodyParser.json());  
+		  app.use(bodyParser.urlencoded({
+				extended: true
+		  }));
+		  //app.use(json());
+		 // app.use(express.urlencoded()); 
+		  appMapControls(app);
 
-      console.log(`App listening at http://${address}:${port}`);
-   }
+		  return app;
+	 }
 
-   const app = express();
-   appSetup(app);
-   app.use(bodyParser.json());
+	 function startedMessage(server)
+	 {
+		  const host = server.address().address
+		  const port = server.address().port
 
-   const server = app.listen(8081);
+		  console.log("App listening at http://%s:%s", host, port);
+	 }
+	 
+	 const app = appSetup();
+	 
+	 const server = app.listen(8081);
 
-   startedMessage(server);
-
+	 startedMessage(server);
+	 
 }
 
 myDropBoxServer.startServer();
