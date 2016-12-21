@@ -1,3 +1,4 @@
+
 const express = require('express');
 const fs = require('fs');
 const busboy = require('connect-busboy');
@@ -18,10 +19,13 @@ myDropBoxServer.controls = function()
 	 {
 		  const dirContent = [];
 
-		  const content = fs.readdirSync(path);
+		  let content = fs.readdirSync(path);
 
 		  for(let c of content)
 		  {
+				if(c.endsWith(".TMP"))
+					 continue
+				
 				if(fs.lstatSync(path+"/"+c).isDirectory())
 				{
 					 const subDir = {};
@@ -58,7 +62,7 @@ myDropBoxServer.controls = function()
 	 {
 		  function copyFile(fieldname,file,filename)
 		  {
-				const fstream = fs.createWriteStream('server/' + fieldname);
+				const fstream = fs.createWriteStream('server/' + fieldname+'.TMP');
 				
 				file.pipe(fstream);
 				
@@ -74,6 +78,8 @@ myDropBoxServer.controls = function()
 					 console.log("arquivo ok "+fieldname);
 					 const objResponse = {status:"ok"};
 					 _writeObjAsJSON(res,objResponse);
+					 fstream.close();
+					 fs.renameSync('server/' + fieldname+'.TMP','server/' + fieldname);
 					 res.end();
 				});
 
@@ -110,9 +116,12 @@ myDropBoxServer.controls = function()
 
 							 if(err)
 							 {
+								  console.log("ERRO ao deletar dir"+err);
 								  objResponse.status = "fail";
 								  res.status(400);
 							 }
+							 else
+								  console.log("Deu bom em deletar dir ");
 							 _writeObjAsJSON(res,objResponse);
 							 res.end();
 						});
@@ -120,6 +129,7 @@ myDropBoxServer.controls = function()
 		  }
 		  else
 		  {
+				console.log("diretorio pra deletar nao existe");
 				const objResponse = {status:"fail"};
 				objResponse.errorMsg = "dir not exists";
 				res.status(400);
@@ -152,6 +162,7 @@ myDropBoxServer.controls = function()
 					 fs.mkdirSync(dirName);
 					 objResponse.status = "ok"
 					 _writeObjAsJSON(res,objResponse);
+					 console.log("debug deu bom "+dirName)
 					 res.end();
 				}
 				catch(err)
@@ -159,6 +170,7 @@ myDropBoxServer.controls = function()
 					 res.status(400);
 					 objResponse.errorMsg = "cannot create the directory, check if the path when you trying put directory exists";
 					 _writeObjAsJSON(res,objResponse);
+					 console.log("debug deu ruim "+dirName)
 					 res.end();
 				}
 				return;
@@ -167,8 +179,9 @@ myDropBoxServer.controls = function()
 				objResponse.status = "nothing";
 
 		  res.status(400);
-		  obj.errorMsg = "The directory already exists, nothing was made";
+		  objResponse.errorMsg = "The directory already exists, nothing was made";
 		  _writeObjAsJSON(res,objResponse);
+		  console.log("debug deu nada "+dirName)
 		  res.end();
 		  
 	 }

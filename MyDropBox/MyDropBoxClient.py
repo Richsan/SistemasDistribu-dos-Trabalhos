@@ -5,6 +5,10 @@ import time
 import threading
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
+from watchdog.events import DirDeletedEvent
+from watchdog.events import FileDeletedEvent
+from watchdog.events import DirCreatedEvent
+from watchdog.events import FileCreatedEvent
 import requests
 import urllib
 import shutil
@@ -20,11 +24,13 @@ class MyDropBox(PatternMatchingEventHandler):
             path/to/observed/file
     """
     
-    def __init__(self,path):
+    def __init__(self,path, host):
         super(MyDropBox,self).__init__()
         self.path = path
+        self.host = host
         self.freezeUpdate = False
-
+        self.freezed = False
+        
         if not(self.path.endswith('/')):
             self.path = self.path + '/'
             
@@ -37,12 +43,16 @@ class MyDropBox(PatternMatchingEventHandler):
         observer = Observer()
         observer.schedule(self, self.path, recursive=True)
         observer.start()
+        self.ignoreEvent = False
 
         try:
             while True:
                 time.sleep(1)
                 if not self.freezeUpdate:
+                    self.freezed = False
                     self.update()
+                else:
+                    self.freezed = True
                 
         except KeyboardInterrupt:
             print("bye")
@@ -51,56 +61,77 @@ class MyDropBox(PatternMatchingEventHandler):
     
     #Event of wachdogs lib
     def on_created(self,event):
-        print ("criado", event.src_path)
-
+        if(self.ignoreEvent):
+            print ("ignorado", event.src_path)
+            self.ignoreEvent = False
+            return
+        
         self.freezeUpdate = True
+
+        while not self.freezed:
+            pass
         
         if event.is_directory:
             self.putDirName(event.src_path)
         else:
             self.sendFile(event.src_path)
 
-        self.listFiles = self.getLocalListFiles()
+        self.listFiles = self.getServerListFiles()
+
+        
+        print ("criado", event.src_path)
         
         self.freezeUpdate = False
     
         
     #event of watchdogs lib
     def on_deleted(self,event):
-        print ("deletado",event.src_path)
+        if self.ignoreEvent == "dir":
+            return
+        
+        if(self.ignoreEvent):
+            print ("ignorado", event.src_path)
+            self.ignoreEvent = False
+            return
 
         self.freezeUpdate = True
+
+        while not self.freezed:
+            pass
         
         if event.is_directory:
             self.removeDir(event.src_path)
         else:
             self.removeFile(event.src_path)
 
-        self.listFiles = self.getLocalListFiles()
-        
+        self.listFiles = self.getServerListFiles()
+
+        print ("deletado",event.src_path)
+
         self.freezeUpdate = False
 
         
         
     def sendFile(self,filename):
         fileOpened = open(filename)
-        filename = filename.split('client/')[1]
+        filename = filename.split(self.path)[1]
         files = {filename: fileOpened }
         
-        print("Enviando: ",filename)
-        response = requests.put('http://localhost:8081/putFile',files=files)
+        response = requests.put('http://'+self.host+'/putFile',files=files)
         fileOpened.close()
+        print("Enviado arquivo:",filename)
         return response
 
     def putDirName(self,dirname):
         dirname = dirname.split(self.path)[1]
-        response = requests.put('http://localhost:8081/putDir',data={'dirname':dirname})
+        response = requests.put('http://'+self.host+'/putDir',data={'dirname':dirname})
+        print("Enviado diretorio:",dirname)
         return response
 
 
     def removeDir(self,dirname):
         dirname = dirname.split(self.path)[1]
-        requests.delete('http://localhost:8081/removeDir?dirname='+dirname)
+        requests.delete('http://'+self.host+'/removeDir?dirname='+dirname)
     
     def retrieveFile(self,filepath,location):
         if not(location.endswith('/')):
@@ -110,16 +141,16 @@ class MyDropBox(PatternMatchingEventHandler):
         filepath = filepath.split(self.path)[1]
         
         print("baixando: "+filepath)
-        urllib.urlretrieve ("http://localhost:8081/getFile?filename="+filepath, location+filename)
+        urllib.urlretrieve ('http://'+self.host+'/getFile?filename='+filepath, location+filename)
 
         
     def removeFile(self,filename):
         filename = filename.split(self.path)[1]
-        requests.delete('http://localhost:8081/removeFile?filename='+filename)
+        requests.delete('http://'+self.host+'/removeFile?filename='+filename)
 
         
     def getServerListFiles(self):
-        return requests.get('http://localhost:8081/listFiles').json()
+        return requests.get('http://'+self.host+'/listFiles').json()
 
     
     def getLocalListFiles(self,path = None):
@@ -131,7 +162,7 @@ class MyDropBox(PatternMatchingEventHandler):
         dirListFiles = os.listdir(path)
         l = []
         for f in dirListFiles:
-            if os.path.isdir(path+"/"+f):
+            if os.path.isdir(path+f):
                 l.append({u'directory':{u'name':unicode(f),u'content':self.getLocalListFiles(path+f)}})
             else:
                 l.append({u'file': unicode(f)})
@@ -141,7 +172,7 @@ class MyDropBox(PatternMatchingEventHandler):
     def getDirList(self,listFiles,dirname):
         for f in listFiles:
             if ('directory' in f):
-                if f['directory']['name'] == dirname:
+                if unicode(f['directory']['name']) == unicode(dirname):
                     return f['directory']['content']
         return None
     
@@ -158,17 +189,29 @@ class MyDropBox(PatternMatchingEventHandler):
         
         for f in localListFiles:
             if ('file' in f) and not(f in serverListFiles):
+                self.ignoreEvent = True
+                print("update removendo arquivo: ",path+f['file'])
                 os.remove(path+f['file'])
                 localListFiles.remove(f)
                 
             elif ('directory' in f):
-                if not(f in serverListFiles):
-                    shutil.rmtree(path+f['directory']['name'], ignore_errors=True)
-                    localListFiles.remove(f)
-                else:
-                    dirServerListFiles = self.getDirList(serverListFiles, f['directory']['name'])
+
+                
+                dirServerListFiles = self.getDirList(serverListFiles, f['directory']['name'])
+                
+                if not(dirServerListFiles is None):
                     dirLocalListFiles = f['directory']['content']
                     self.updateDelete(dirServerListFiles,path+f['directory']['name'],dirLocalListFiles)
+
+                else:
+                    self.ignoreEvent = "dir"
+                    print("update removendo direitorio"+path+f['directory']['name'])
+                    shutil.rmtree(path+f['directory']['name'], ignore_errors=True)
+                    localListFiles.remove(f)
+                    self.ignoreEvent = False
+                    
+
+    
 
                 
     def updateDownload(self,serverListFiles,path = None,localListFiles = None):
@@ -183,25 +226,31 @@ class MyDropBox(PatternMatchingEventHandler):
             
         for f in serverListFiles:
             if ('file' in f) and not(f in localListFiles):
+                self.ignoreEvent = True
+                print("update baixando arquivo: "+path+f['file'])
                 self.retrieveFile(path+f['file'],path)
                 localListFiles.append(f)
 
             elif ('directory' in f):
-                if not(f in self.listFiles):
+                dirLocalList = self.getDirList(localListFiles,f['directory']['name'])
+                if (dirLocalList is None):
+                    self.ignoreEvent = True
+                    print("update criando diretorio: "+path+f['directory']['name'])
                     os.mkdir(path+f['directory']['name'])
-                    localListFiles.append({"directory":{"name":f['directory']['name'], "content":[]}})
-                    
+                    localListFiles.append({u'directory':{u'name':unicode(f['directory']['name']), u'content': []}})
+
                 dirServerListFiles = f['directory']['content']
                 dirLocalListFiles = self.getDirList(localListFiles,f['directory']['name'])
                 self.updateDownload(dirServerListFiles,path+f['directory']['name'],dirLocalListFiles)
+                
 
                 
     def update(self):
-            
         listFiles = self.getServerListFiles()
-       
+
         self.updateDelete(listFiles)
         self.updateDownload(listFiles)
+        
         self.listFiles = listFiles
         
         
@@ -212,5 +261,10 @@ if __name__ == "__main__":
     if not(os.path.isdir(argv[1])):
         raise "The path informed is not a dir path"
 
-    MyDropBox(argv[1])
+    if len(argv) == 3:
+        host = argv[2]
+    else:
+        host = 'localhost:8081'
+        
+    MyDropBox(argv[1],host)
 
