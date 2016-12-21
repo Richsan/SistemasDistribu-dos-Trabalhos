@@ -1,1 +1,0 @@
-java -jar saci.jar cyanTests/$1 -cyanlang lib -javalib lib/javalib

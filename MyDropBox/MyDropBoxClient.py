@@ -1,3 +1,20 @@
+"""
+ * Universidade Federal de São Carlos - Campus Sorocaba
+ * Disciplina: Sistemas Distribuídos
+ * 
+ * MyDropBox 
+ *
+ * Alunos: 
+ * Carolina Pascale Campos            RA: 552100
+ * Henrique Manoel de Lima Sebastião  RA: 552259
+ *
+ * Execução: python MyDropBoxClient.py [pasta a ser monitorada] [host]
+ *
+ * OBS: Nao incluir http:// no host, se o host nao for informado sera
+ * assumido localhost:8081
+"""
+
+
 from sys import argv
 from sys import exit
 import os

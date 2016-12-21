@@ -1,3 +1,18 @@
+/*
+ * Universidade Federal de São Carlos - Campus Sorocaba
+ * Disciplina: Sistemas Distribuídos
+ * 
+ * Multicast Totalmente Ordenado 
+ *
+ * Alunos: 
+ * Carolina Pascale Campos            RA: 552100
+ * Henrique Manoel de Lima Sebastião  RA: 552259
+ *
+ * Execução: node MyDropBoxServer.js
+ *
+ *OBS: Deve existir uma pasta chamada server no mesmo diretorio deste arquivo
+ */
+
 
 const express = require('express');
 const fs = require('fs');
@@ -121,7 +136,7 @@ myDropBoxServer.controls = function()
 								  res.status(400);
 							 }
 							 else
-								  console.log("Deu bom em deletar dir ");
+								  console.log("deletado dir ");
 							 _writeObjAsJSON(res,objResponse);
 							 res.end();
 						});
@@ -162,7 +177,7 @@ myDropBoxServer.controls = function()
 					 fs.mkdirSync(dirName);
 					 objResponse.status = "ok"
 					 _writeObjAsJSON(res,objResponse);
-					 console.log("debug deu bom "+dirName)
+					 console.log("criado diretorio "+dirName);
 					 res.end();
 				}
 				catch(err)
@@ -170,7 +185,7 @@ myDropBoxServer.controls = function()
 					 res.status(400);
 					 objResponse.errorMsg = "cannot create the directory, check if the path when you trying put directory exists";
 					 _writeObjAsJSON(res,objResponse);
-					 console.log("debug deu ruim "+dirName)
+					 console.log("falha ao criar diretorio "+dirName);
 					 res.end();
 				}
 				return;
@@ -181,7 +196,7 @@ myDropBoxServer.controls = function()
 		  res.status(400);
 		  objResponse.errorMsg = "The directory already exists, nothing was made";
 		  _writeObjAsJSON(res,objResponse);
-		  console.log("debug deu nada "+dirName)
+		  console.log("diretorio "+dirName+" ja existe");
 		  res.end();
 		  
 	 }
